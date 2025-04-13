@@ -1,0 +1,17 @@
++ - * / ( ) num name
+
+Goal Expr Term Factor
+
+Goal
+
+Goal -> Expr
+Expr -> Expr + Term
+Expr -> Expr - Term
+Expr -> Term
+Term -> Term * Factor
+Term -> Term / Factor
+Term -> Factor
+Factor -> ( Expr )
+Factor -> ( Expr )
+Factor -> num
+Factor -> name

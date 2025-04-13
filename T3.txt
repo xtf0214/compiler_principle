@@ -1,0 +1,14 @@
+a b c
+
+S L R Q
+
+S
+
+S -> L
+L -> R a
+L -> Q b a
+R -> a b a
+R -> c a b a
+R -> R b c
+Q -> b b c
+Q -> b c
