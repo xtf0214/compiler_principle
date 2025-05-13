@@ -60,7 +60,7 @@ dot, processList, syntaxMsg = grammar.LL1_analyze(tokens)
 
 **分析结果**
 
-![语法分析树](./output/LR1_analyze.png)
+<img src="./output/LR1_analyze.png" width="320px">
 
 ------
 ## JavaScrip部分
