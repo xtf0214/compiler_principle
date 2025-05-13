@@ -1,0 +1,16 @@
+start number word operator whitespace
+
+alpha digit operator whitespace
+
+start digit number
+number digit number
+start alpha word
+word alpha word
+word digit word
+start operator operator
+start whitespace whitespace
+whitespace whitespace whitespace
+
+start
+
+number word operator whitespace

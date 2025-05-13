@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>词法分析器</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <style>
+        .table-container {
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+
+        .table th,
+        .table td {
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .render-area {
+            min-height: 300px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .render-area svg {
+            width: 100%;
+        }
+    </style>
+    <script src="js/vue.global.prod.js"></script>
+    <script src="js/axios.min.js"></script>
+    <script src="js/utils.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <nav class="navbar navbar-expand-lg bg-body-tertiary">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="index.html">编译原理</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#navbarNavAltMarkup" aria-controls="navbarNavAltMarkup" aria-expanded="false"
+                    aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNavAltMarkup">
+                    <div class="navbar-nav">
+                        <a class="nav-link" href="FA.html">词法分析：FA转换算法</a>
+                        <a class="nav-link active" aria-current="page" href="Lexer.html">词法分析器</a>
+                        <a class="nav-link" href="LL1.html">LL(1)语法分析</a>
+                        <a class="nav-link" href="LR1.html">LR(1)语法分析</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        <div class="container-fluid mt-4">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>载入词法分析器</span>
+                            <div class="d-flex align-items-center">
+                                <div style="width: 250px;">
+                                    <select class="form-select" v-model="selectedLexer">
+                                        <option value="">请选择预设词法分析器</option>
+                                        <option v-for="lexer in lexerList" :key="lexer.name" :value="lexer.name">
+                                            {{ lexer.name }}
+                                        </option>
+                                    </select>
+                                </div>
+                                <button @click="loadLexer" class="btn btn-primary ms-2">转换</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">输入DFA</label>
+                                <textarea v-model="faDefinition" class="form-control" rows="15" placeholder="请输入形式化DFA，格式如下：
+状态集，如：start number word operator whitespace
+字母分类表或字母表，如：alpha digit operator whitespace
+转移函数(s, c, δ(s, c))，如：
+start digit number
+number digit number
+start alpha word
+word alpha word
+word digit word
+start operator operator
+start whitespace whitespace
+whitespace whitespace whitespace
+起始状态，如：start
+接受状态集，如：number word operator whitespace"></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label">分类器表、标记类型表、关键字表</label>
+                                <textarea v-model="charCat" class="form-control" rows="15" placeholder='请输入分类器表、标记类型表、关键字表，使用json格式如下：
+{
+    "Type": {
+        "number":  "num",
+        "word":  "name",
+        "whitespace":  "whitespace"
+    },
+    "charCat": {
+        "alpha":  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "digit":  "0123456789",
+        "operator":  "+-*/()",
+        "whitespace":  " \t\n\r"
+    },
+    "keyword": [ "int" ]
+}
+                                '></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-header">状态转移图</div>
+                        <div class="card-body">
+                            <div class="render-area" v-html="dfaSvg"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>输入字符串</span>
+                            <button @click="analyzeInput" class="btn btn-primary ms-2"
+                                :disabled="!lexerLoaded">分析</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <textarea class="form-control font-monospace" v-model="inputString" rows="10"
+                                    placeholder="输入要分析的字符串"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mb-4">
+                        <div class="card-header">分析结果</div>
+                        <div class="card-body">
+                            <div class="d-flex align-content-start flex-wrap">
+                                <div v-for="(token, index) in tokens" :key="index" class="border p-2 font-monospace">
+                                    {{ token[0] !== token[1] ? `${token[0]},${token[1]}` : token[0] }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const { createApp, ref, watch, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const selectedLexer = ref('');
+                const lexerList = ref([]);
+                const faDefinition = ref('');
+                const charCat = ref('');
+                const inputString = ref('');
+                const dfaSvg = ref('');
+                const tokens = ref([]);
+                const lexerLoaded = ref(false);
+
+                const loadLexer = async () => {
+                    try {
+                        // 加载DFA
+                        const faResponse = await axios.post('/api/lexical/fa/load', {
+                            faInput: faDefinition.value
+                        });
+                        const dfa = faResponse.data;
+
+                        // 生成状态转移图
+                        const dfaDot = await generateDot(dfa);
+                        dfaSvg.value = await renderDot(dfaDot);
+
+                        // 加载词法分析器
+                        const config = JSON.parse(charCat.value);
+                        await axios.post('/api/lexical/lexer/load', {
+                            dfa, config
+                        });
+
+                        lexerLoaded.value = true;
+                    } catch (error) {
+                        console.error(error);
+                        const errorMessage = error.response?.data?.error || error.message;
+                        alert('错误：' + errorMessage);
+                    }
+                };
+
+                const analyzeInput = async () => {
+                    try {
+                        const response = await axios.post('/api/lexical/lexer/analyze', {
+                            inputString: inputString.value
+                        });
+                        tokens.value = response.data.tokens;
+                    } catch (error) {
+                        console.error(error);
+                        const errorMessage = error.response?.data?.error || error.message;
+                        alert('分析失败：' + errorMessage);
+                    }
+                };
+
+                const fetchLexerList = async () => {
+                    try {
+                        const response = await axios.get('/api/lexical/lexer/list');
+                        lexerList.value = Object.keys(response.data).map(name => ({
+                            name,
+                            ...response.data[name]
+                        }));
+                    } catch (error) {
+                        console.error(error);
+                        const errorMessage = error.response?.data?.error || error.message;
+                        console.error('获取词法分析器列表失败:', errorMessage);
+                    }
+                };
+
+                watch(selectedLexer, (newValue) => {
+                    if (newValue) {
+                        const selected = lexerList.value.find(lexer => lexer.name === newValue);
+                        if (selected) {
+                            faDefinition.value = selected.dfa;
+                            charCat.value = selected.charCat;
+                            inputString.value = selected.inputString;
+                        }
+                        lexerLoaded.value = false;
+                    }
+                });
+
+                onMounted(() => {
+                    fetchLexerList();
+                });
+
+                return {
+                    selectedLexer,
+                    lexerList,
+                    faDefinition,
+                    charCat,
+                    inputString,
+                    dfaSvg,
+                    tokens,
+                    lexerLoaded,
+                    loadLexer,
+                    analyzeInput
+                };
+            }
+        }).mount('#app');
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

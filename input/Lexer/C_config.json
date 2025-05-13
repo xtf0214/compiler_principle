@@ -1,0 +1,40 @@
+{
+    "Type": {
+        "number": "num",
+        "word": "name",
+        "stringR": "string",
+        "whitespace": "whitespace"
+    },
+    "charCat": {
+        "alpha": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "digit": "0123456789",
+        "operator": "*/%()[]{},:;",
+        "+": "+",
+        "-": "-",
+        "\"": "\"",
+        "=": "=",
+        "!": "!",
+        "<": "<",
+        ">": ">",
+        "whitespace": " \t\n\r"
+    },
+    "keyword": [
+        "int",
+        "string",
+        "void",
+        "if",
+        "else",
+        "for",
+        "while",
+        "do",
+        "switch",
+        "case",
+        "default",
+        "break",
+        "continue",
+        "return",
+        "const",
+        "true",
+        "false"
+    ]
+}

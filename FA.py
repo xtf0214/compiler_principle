@@ -1,12 +1,12 @@
 import pandas as pd
 from graphviz import Digraph
 
-EPS = "eps"
-EOF = "eof"
+EPS = "ε"
+EOF = "$"
 
 
-class NFA:
-    def __init__(self, S: list, sigma: list, delta: list[(str, str, str)], s0: str, A: list):
+class FA:
+    def __init__(self, S: list, sigma: list, delta: list, s0, A: list):
         self.S = S
         self.sigma = sigma
         self.delta = delta
@@ -17,7 +17,7 @@ class NFA:
             self.G[u].setdefault(w, []).append(v)
 
     @classmethod
-    def load_fa(cls, filename: str):
+    def load(cls, filename: str):
         with open(filename, "r") as f:
             S, sigma, delta, s0, A = f.read().replace("eps", EPS).split("\n\n")
             S = S.split(" ")
@@ -32,15 +32,18 @@ class NFA:
     def move(self, s: str, w: str):
         return self.G[s][w] if w in self.G[s] else []
 
-    def plot(self, filename: str):
+    def dot(self, filename: str, view: bool = False):
         dot = Digraph(filename)
         for u in self.S:
-            dot.node(u, u)
+            dot.node(u, u, shape="circle")
         for u in self.A:
             dot.node(u, u, shape="doublecircle")
         for u, w, v in self.delta:
             dot.edge(u, v, label=w)
-        dot.render(f"./output/{filename}.gv")
+        dot.render(f"./output/{filename}.gv", view=view)
+
+
+class NFA(FA):
 
     def dfs_eps_closure(self):
         """离线计算 eps_closure"""
@@ -79,6 +82,8 @@ class NFA:
         print(E, iter_cnt)
 
     def subset_construction(self):
+        """子集构造法"""
+
         def get_delta(q: list, c: str) -> list:
             S = []
             for x in q:
@@ -99,32 +104,31 @@ class NFA:
                         worklist.append(v)
             return sorted(S)
 
-        df = pd.DataFrame(columns=["集合名称", "DFA状态", "NFA状态子集"] + self.sigma)
+        Q = [eps_closure([self.s0])]
+        worklist = [Q[0]]
         T = {}
-        q0 = eps_closure([self.s0])
-        Q = [q0]
-        worklist = [q0]
+        TT = {}
+
         while worklist:
             q = worklist.pop(0)
-            df.loc[len(df)] = [f"q{len(df)}", f"d{len(df)}", q] + [EPS for c in self.sigma]
             T[Q.index(q)] = {}
+            TT[Q.index(q)] = {}
             for c in self.sigma:
                 t = eps_closure(get_delta(q, c))
-                df.at[len(df) - 1, c] = t if t not in Q else f"q{Q.index(t)}"
+                T[Q.index(q)][c] = t if t not in Q else f"{Q.index(t)}"
                 if t not in Q:
                     Q.append(t)
                     worklist.append(t)
-                T[Q.index(q)][c] = Q.index(t)
-        print(df)
-        delta = [(str(u), str(w), str(v)) for u, items in T.items() for w, v in items.items()]
-        nfa = DFA(
+                TT[Q.index(q)][c] = Q.index(t)
+        delta = [(str(u), str(w), str(v)) for u, items in TT.items() for w, v in items.items()]
+        dfa = DFA(
             S=[str(i) for i in T.keys()],
             sigma=self.sigma,
             delta=delta,
-            s0="0",
+            s0=str(0),
             A=[str(i) for i in range(len(Q)) if set(self.A) & set(Q[i])],
         )
-        return nfa
+        return dfa, Q, T
 
 
 class DFA(NFA):
@@ -150,7 +154,7 @@ class DFA(NFA):
                 # 不存在经c不可转移的点,按照转移点所属集合切分
                 groupby = {}
                 for k, v in dst.items():
-                    groupby.setdefault(s_index[v], []).append(k)
+                    groupby.setdefault(stateMap[v], []).append(k)
                 if len(groupby) > 1:
                     print(s, c, list(groupby.values()))
                 s1 = set(next(iter(groupby.values())))
@@ -166,9 +170,9 @@ class DFA(NFA):
 
         T = {frozenset(self.A), frozenset(self.S) - frozenset(self.A)}
         P = set()
-        s_index = {}
+        stateMap = {}
         while T != P:
-            s_index = {x: str(i) for i, s in enumerate(T) for x in s}
+            stateMap = {x: str(i) for i, s in enumerate(T) for x in s}
             P = T
             T = set()
             for p in P:
@@ -178,45 +182,56 @@ class DFA(NFA):
         min_dfa = DFA(
             S=[str(i) for i in range(len(T))],
             sigma=self.sigma,
-            delta=list({(s_index[u], c, s_index[v]) for u, c, v in self.delta}),
-            s0=s_index[self.s0],
-            A={s_index[i] for i in self.S if i in self.A},
+            delta=list({(stateMap[u], c, stateMap[v]) for u, c, v in self.delta}),
+            s0=stateMap[self.s0],
+            A=list({stateMap[i] for i in self.S if i in self.A}),
         )
         return min_dfa
 
-    # def hopcroft(self):
-    #     partition = [set(self.S_A), set(self.S) - set(self.S_A)]
-    #     worklist = [set(self.S_A), set(self.S) - set(self.S_A)]
-    #     while worklist:
-    #         s = worklist.pop()
-    #         for c in self.sigma:
-    #             image = {u for u, w, v in self.delta if w == c and v in s}
-    #             for q in partition:
-    #                 q1 = q & image
-    #                 q2 = q - q1
-    #                 if q1 and q2:
-    #                     partition.remove(q)
-    #                     partition.append(q1)
-    #                     partition.append(q2)
-    #                     if q in worklist:
-    #                         worklist.remove(q)
-    #                         worklist.append(q1)
-    #                         worklist.append(q2)
-    #                     else:
-    #                         if len(q1) <= len(q2):
-    #                             worklist.append(q1)
-    #                         else:
-    #                             worklist.append(q2)
-    #                     if s == q:
-    #                         break
-    #     print(partition)
-    #     print(sorted(partition))
+    def hopcroft1(self):
+        partition = [set(self.A), set(self.S) - set(self.A)]
+        worklist = [set(self.A), set(self.S) - set(self.A)]
+        PI = []
+        while worklist:
+            s = worklist.pop()
+            for c in self.sigma:
+                image = {u for u, w, v in self.delta if w == c and v in s}
+                for q in partition:
+                    q1 = q & image
+                    q2 = q - q1
+                    if q1 and q2:
+                        PI.append((partition, q, c, q1, q2))
+                        partition.remove(q)
+                        partition.append(q1)
+                        partition.append(q2)
+                        if q in worklist:
+                            worklist.remove(q)
+                            worklist.append(q1)
+                            worklist.append(q2)
+                        else:
+                            worklist.append(q1 if len(q1) <= len(q2) else q2)
+        PI.append((partition, {}, None, {}, {}))
+        stateMap = {x: min(s) for s in partition for x in s}
+        min_dfa = DFA(
+            S=[str(i) for i in stateMap.values()],
+            sigma=self.sigma,
+            delta=list({(stateMap[u], c, stateMap[v]) for u, c, v in self.delta}),
+            s0=str(stateMap[self.s0]),
+            A=list({str(stateMap[i]) for i in self.A}),
+        )
+        return min_dfa, PI
 
 
 if __name__ == "__main__":
-    nfa = NFA.load_fa("FA1.txt")
-    nfa.plot("nfa")
-    dfa = nfa.subset_construction()
-    dfa.plot("dfa")
-    min_dfa = dfa.hopcroft()
-    min_dfa.plot("min_dfa")
+    nfa = NFA.load("./input/FA/test1_FA.txt")
+    nfa.dot("nfa", view=True)
+    dfa, Q, T = nfa.subset_construction()
+    print("----------子集构造法----------")
+    df1 = pd.DataFrame(T, index=dfa.sigma).T.rename_axis("集合名称")
+    df1.insert(0, "DFA状态子集", Q)
+    print(df1)
+    dfa.dot("dfa", view=True)
+    print("----------Hopcroft算法----------")
+    min_dfa, PI = dfa.hopcroft1()
+    print(pd.DataFrame(PI))
+    min_dfa.dot("min_dfa", view=True)

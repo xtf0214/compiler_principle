@@ -1,0 +1,29 @@
+digraph fa {
+  "1" [ label = "Goal", shape =circle ];
+  "2" [ label = "Expr", shape =circle ];
+  "3" [ label = "Expr", shape =circle ];
+  "4" [ label = "Term", shape =circle ];
+  "5" [ label = "Factor", shape =circle ];
+  "6" [ label = "name", shape =doublecircle ];
+  "7" [ label = "+", shape =doublecircle ];
+  "8" [ label = "Term", shape =circle ];
+  "9" [ label = "Term", shape =circle ];
+  "10" [ label = "Factor", shape =circle ];
+  "11" [ label = "name", shape =doublecircle ];
+  "12" [ label = "*", shape =doublecircle ];
+  "13" [ label = "Factor", shape =circle ];
+  "14" [ label = "name", shape =doublecircle ];
+  "1" -> "2";
+  "2" -> "3";
+  "3" -> "4";
+  "4" -> "5";
+  "5" -> "6";
+  "2" -> "7";
+  "2" -> "8";
+  "8" -> "9";
+  "9" -> "10";
+  "10" -> "11";
+  "8" -> "12";
+  "8" -> "13";
+  "13" -> "14";
+}

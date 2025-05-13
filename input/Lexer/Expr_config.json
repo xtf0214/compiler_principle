@@ -1,0 +1,14 @@
+{
+    "Type": {
+        "number": "num",
+        "word": "name",
+        "whitespace": "whitespace"
+    },
+    "charCat": {
+        "alpha": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "digit": "0123456789",
+        "operator": "+-*/()",
+        "whitespace": " \t\n\r"
+    },
+    "keyword": []
+}

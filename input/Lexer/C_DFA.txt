@@ -1,0 +1,40 @@
+start number word operator whitespace stringL stringR plus inc minus dec greater ge less le assign ne eq err1
+
+digit alpha operator whitespace " + - < > = !
+
+start digit number
+number digit number
+start alpha word
+word alpha word
+word digit word
+start operator operator
+start whitespace whitespace
+whitespace whitespace whitespace
+start " stringL
+stringL alpha stringL
+stringL digit stringL
+stringL operator stringL
+stringL whitespace stringL
+stringL + stringL
+stringL - stringL
+stringL < stringL
+stringL > stringL
+stringL = stringL
+stringL ! stringL
+stringL " stringR
+start + plus
+plus + inc
+start - minus
+minus - dec
+start > greater
+greater = ge
+start < less
+less = le
+start = assign
+assign = eq
+start ! err1
+err1 = ne
+
+start
+
+number word operator whitespace stringR plus inc minus dec greater ge less le assign eq ne

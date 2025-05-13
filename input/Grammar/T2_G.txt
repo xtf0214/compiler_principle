@@ -1,0 +1,12 @@
+a b c d e
+
+E' E A B
+
+E'
+
+E' -> E
+E -> A a
+E -> B b
+A -> c A
+A -> e B
+B -> b d

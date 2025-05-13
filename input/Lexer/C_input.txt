@@ -1,0 +1,15 @@
+int main() {
+    int a = 1;
+    string b = "hello world";
+    int c[10];
+    for (int i = 0; i < 10; i++) {
+        if (i % 2 == 0) {
+            c[i] = a;
+        }
+    }
+    while (true) {
+        int i = 0;
+        print(c[i++]);
+    }
+    return;
+}

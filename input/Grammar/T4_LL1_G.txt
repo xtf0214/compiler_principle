@@ -1,0 +1,12 @@
+a b c
+
+E S S' A B
+
+E
+
+E -> S
+S -> a B S'
+S' -> b A S'
+S' -> eps
+A -> c
+B -> A c

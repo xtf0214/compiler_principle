@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LR(1)语法分析器</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <style>
+        .table-container {
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+
+        .table th,
+        .table td {
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .render-area {
+            min-height: 300px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .render-area svg {
+            width: 100%;
+        }
+    </style>
+    <script src="js/utils.js"></script>
+    <script src="js/vue.global.prod.js"></script>
+    <script src="js/axios.min.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <nav class="navbar navbar-expand-lg bg-body-tertiary">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="index.html">编译原理</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#navbarNavAltMarkup" aria-controls="navbarNavAltMarkup" aria-expanded="false"
+                    aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNavAltMarkup">
+                    <div class="navbar-nav">
+                        <a class="nav-link" href="FA.html">词法分析：FA转换算法</a>
+                        <a class="nav-link" href="Lexer.html">词法分析器</a>
+                        <a class="nav-link" href="LL1.html">LL(1)语法分析</a>
+                        <a class="nav-link active" aria-current="page" href="LR1.html">LR(1)语法分析</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        <div class="container-fluid mt-4">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>输入语法规则</span>
+                            <div class="d-flex align-items-center">
+                                <div style="width: 250px;">
+                                    <select class="form-select" v-model="selectedGrammar">
+                                        <option value="">请选择预设LR(1)语法</option>
+                                        <option v-for="grammar in grammarList" :key="grammar.name"
+                                            :value="grammar.name">
+                                            {{ grammar.name }}
+                                        </option>
+                                    </select>
+                                </div>
+                                <button @click="loadGrammar" class="btn btn-primary ms-2">加载语法</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div>
+                                <textarea class="form-control" v-model="grammarInput" rows="15" placeholder="请输入语法规则，格式如下：
+终结符 终结符 终结符
+非终结符 非终结符 非终结符
+起始符号
+非终结符 -> 符号序列
+非终结符 -> 符号序列"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">LR(1)项集规范族</div>
+                        <div class="card-body">
+                            <table class="table table-bordered">
+                                <tbody>
+                                    <tr v-for="(item, index) in CCTable" :key="index">
+                                        <td class="font-monospace">{{ item.name }}</td>
+                                        <td class="card-body d-flex align-content-start flex-wrap font-monospace">
+                                            {{ item.goto }}=
+                                            <div v-for="tern in item.items" class="border">
+                                                {{ tern }}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-header">Action-Goto表</div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th rowspan="2">状态</th>
+                                            <th :colspan="(grammar.T || []).length + 1">Action</th>
+                                            <th :colspan="(grammar.NT || []).length">Goto</th>
+                                        </tr>
+                                        <tr>
+                                            <th>$</th>
+                                            <th v-for="t in grammar.T">{{ t }}</th>
+                                            <th v-for="nt in grammar.NT">{{ nt }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(_, index) in grammar.CC">
+                                            <td>{{ index }}</td>
+                                            <td v-for="t in ['$',...grammar.T]">
+                                                {{ grammar.Action[index][t] }}
+                                            </td>
+                                            <td v-for="nt in grammar.NT">
+                                                {{ grammar.Goto[index][nt] }}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">LR(1)句柄查找DFA</div>
+                        <div class="card-body">
+                            <div v-html="dfaSvg" class="render-area">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>输入单词流</span>
+                            <button @click="analyzeInput" class="btn btn-primary ms-2"
+                                :disabled="!grammarLoaded">分析</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <textarea class="form-control font-monospace" v-model="inputStream" rows="10"
+                                    placeholder="输入要分析的单词流"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">语法分析过程</div>
+                        <div class="card-body">
+                            <div v-html="syntaxTree" class="render-area"></div>
+                            <div class="p-2">{{ syntaxMessage }}</div>
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>状态</th>
+                                        <th>前瞻单词</th>
+                                        <th>栈</th>
+                                        <th>句柄</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(process, index) in processList" :key="index">
+                                        <td>{{ process[0] }}</td>
+                                        <td>{{ process[1] }}</td>
+                                        <td>{{ process[2].flat().join(' ') }}</td>
+                                        <td>{{ process[3].join(' ') }}</td>
+                                        <td>{{ process[4] }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const { createApp, ref, watch, onMounted } = Vue;
+        const app = createApp({
+            setup() {
+                const grammarInput = ref("");
+                const grammarList = ref([]);
+                const selectedGrammar = ref("");
+                const inputStream = ref("");
+                const processList = ref([]);
+                const syntaxTree = ref('');
+                const syntaxMessage = ref('');
+                const grammar = ref({});
+                const dfaSvg = ref('');
+                const CCTable = ref([]);
+                const grammarLoaded = ref(false);
+
+                const loadGrammar = async () => {
+                    try {
+                        const response = await axios.post('/api/grammar/lr1/load', {
+                            grammarInput: grammarInput.value,
+                        });
+                        const data = response.data;
+                        grammar.value = data;
+                        grammarLoaded.value = true;
+                        CCTable.value = [{
+                            name: 'CC0',
+                            goto: '',
+                            items: data.CC[0].map(([A, beta, delta, a]) => `[${A} -> ${beta.join(' ')} • ${delta.join(' ')}, ${a}]`),
+                        }];
+                        let printed = new Set();
+                        Object.entries(data.CC_dict).forEach(([u, item]) =>
+                            Object.entries(item).forEach(([w, v]) => {
+                                if (!printed.has(v)) {
+                                    printed.add(v);
+                                    CCTable.value.push({
+                                        name: `CC${v}`,
+                                        goto: `=goto(CC${u},${w})`,
+                                        items: data.CC[v].map(([A, beta, delta, a]) => `[${A} -> ${beta.join(' ')} • ${delta.join(' ')}, ${a}]`),
+                                    })
+                                }
+                            })
+                        );
+
+                        const dfaDot = await generateDot(data.dfa);
+                        dfaSvg.value = await renderDot(dfaDot);
+                    } catch (error) {
+                        console.error(error);
+                        const errorMessage = error.response?.data?.error || error.message;
+                        alert('错误：' + errorMessage);
+                    }
+                };
+                const analyzeInput = async () => {
+                    try {
+                        const response = await axios.post('/api/grammar/lr1/analyze', {
+                            inputStream: inputStream.value,
+                        });
+                        const data = response.data;
+                        processList.value = data.processList;
+                        syntaxTree.value = await renderDot(data.syntaxTree);
+                        syntaxMessage.value = data.message;
+                    } catch (error) {
+                        console.error(error);
+                        const errorMessage = error.response?.data?.error || error.message;
+                        alert('分析失败：' + errorMessage);
+                    }
+                }
+                const fetchGrammarList = async () => {
+                    try {
+                        const response = await axios.get('/api/grammar/lr1/list');
+                        grammarList.value = Object.keys(response.data).map(name => ({
+                            name,
+                            ...response.data[name]
+                        }));
+                    } catch (error) {
+                        console.error(error);
+                        const errorMessage = error.response?.data?.error || error.message;
+                        console.error("获取语法列表失败：" + errorMessage);
+                    }
+                }
+                watch(selectedGrammar, (newValue) => {
+                    if (newValue) {
+                        const selected = grammarList.value.find(grammar => grammar.name === newValue);
+                        if (selected) {
+                            grammarInput.value = selected.grammar;
+                            inputStream.value = selected.inputStream;
+                        }
+                    }
+                });
+                watch(grammarInput, (newValue) => {
+                    grammarLoaded.value = false;
+                });
+                onMounted(() => {
+                    fetchGrammarList();
+                });
+
+                return {
+                    grammarInput,
+                    selectedGrammar,
+                    grammarList,
+                    loadGrammar,
+                    grammar,
+                    dfaSvg,
+                    CCTable,
+                    inputStream,
+                    analyzeInput,
+                    processList,
+                    syntaxTree,
+                    syntaxMessage,
+                    grammarLoaded,
+                }
+            }
+        })
+        app.mount("#app");
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>词法分析：FA转换算法</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <style>
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .table th,
+        .table td {
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .render-area {
+            min-height: 300px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .render-area svg {
+            width: 100%;
+        }
+    </style>
+    <script src="js/vue.global.prod.js"></script>
+    <script src="js/axios.min.js"></script>
+    <script src="js/utils.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <nav class="navbar navbar-expand-lg bg-body-tertiary">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="index.html">编译原理</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#navbarNavAltMarkup" aria-controls="navbarNavAltMarkup" aria-expanded="false"
+                    aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNavAltMarkup">
+                    <div class="navbar-nav">
+                        <a class="nav-link active" aria-current="page" href="FA.html">词法分析：FA转换算法</a>
+                        <a class="nav-link" href="Lexer.html">词法分析器</a>
+                        <a class="nav-link" href="LL1.html">LL(1)语法分析</a>
+                        <a class="nav-link" href="LR1.html">LR(1)语法分析</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+        <div class="container-fluid mt-4">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>输入FA</span>
+                            <div class="d-flex align-items-center">
+                                <div style="width: 200px;">
+                                    <select class="form-select" v-model="selectedFA">
+                                        <option value="">请选择预设NFA</option>
+                                        <option v-for="fa in FAList" :key="fa.name" :value="fa.name">
+                                            {{ fa.name }}
+                                        </option>
+                                    </select>
+                                </div>
+                                <button @click="convertFA" class="btn btn-primary ms-2">转换</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <textarea v-model="nfaInput" class="form-control" rows="15" placeholder="请输入形式化FA，格式如下：
+状态集，如：0 1 2 3
+字母表，如：a b
+转移函数(s, c, δ(s, c))，空转移用eps表示，如：
+0 a 1
+0 eps 2
+1 a 3
+1 b 2
+2 a 1
+起始状态，如：0
+接受状态集，如：3"></textarea>
+                        </div>
+                    </div>
+                    <div class="card mb-4">
+                        <div class="card-header">NFA状态转移图</div>
+                        <div class="card-body">
+                            <div class="render-area" v-html="nfaSvg"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-header">使用子集构造法构建DFA</div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th rowspan="2">集合名称</th>
+                                            <th rowspan="2">DFA状态子集</th>
+                                            <th :colspan="alphabet.length + 2">
+                                                ε-closure(Delta(q<sub>i</sub>,*))</th>
+                                        </tr>
+                                        <tr>
+                                            <th v-for="symbol in alphabet" :key="symbol">{{ symbol }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(subset, index) in Q" :key="index">
+                                            <td>{{ index }}</td>
+                                            <td>{{ '{' + subset.join(', ') + '}' }}</td>
+                                            <td v-for="symbol in alphabet" :key="symbol">
+                                                {{ formatNextState(T[index][symbol]) }}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mb-4">
+                        <div class="card-header">DFA状态转移图</div>
+                        <div class="card-body">
+                            <div class="render-area" v-html="dfaSvg"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-header">使用hopcroft算法最小化DFA</div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>当前划分</th>
+                                            <th>集合</th>
+                                            <th>字符</th>
+                                            <th>分裂结果1</th>
+                                            <th>分裂结果2</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(step, index) in piData" :key="index">
+                                            <td>π={{ '{' + step[0].map(s => '{' + s.join(',') + '}').join(' ') + '}' }}
+                                            </td>
+                                            <td>{{ '{' + step[1].join(', ') + '}' }}</td>
+                                            <td>{{ step[2] || '' }}</td>
+                                            <td>{{ '{' + step[3].join(', ') + '}' }}</td>
+                                            <td>{{ '{' + step[4].join(', ') + '}' }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mb-4">
+                        <div class="card-header">最小化DFA状态转移图</div>
+                        <div class="card-body">
+                            <div class="render-area" v-html="minDfaSvg"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, watch, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const nfaInput = ref('');
+                const nfaSvg = ref('');
+                const dfaSvg = ref('');
+                const minDfaSvg = ref('');
+                const Q = ref([]);
+                const T = ref([]);
+                const alphabet = ref([]);
+                const piData = ref([]);
+
+                const convertFA = async () => {
+                    try {
+                        const { data } = await axios.post('/api/lexical/fa/convert', { nfaInput: nfaInput.value });
+                        Q.value = data.dfa.Q;
+                        T.value = data.dfa.T;
+                        alphabet.value = data.dfa.sigma;
+                        piData.value = data.minDfa.PI;
+
+                        const nfaDot = await generateDot(data.nfa);
+                        const dfaDot = await generateDot(data.dfa);
+                        const minDfaDot = await generateDot(data.minDfa);
+                        nfaSvg.value = await renderDot(nfaDot);
+                        dfaSvg.value = await renderDot(dfaDot);
+                        minDfaSvg.value = await renderDot(minDfaDot);
+                    } catch (error) {
+                        console.error(error);
+                        const errorMessage = error.response?.data?.error || error.message;
+                        alert('错误：' + errorMessage);
+                    }
+                };
+
+                const formatNextState = (nextState) => {
+                    if (nextState === undefined) return '';
+                    if (typeof nextState === 'number') return nextState;
+                    return `{${nextState.join(', ')}}`;
+                };
+
+                const selectedFA = ref('');
+                const FAList = ref([]);
+
+                const fetchFAList = async () => {
+                    try {
+                        const { data } = await axios.get('/api/lexical/fa/list');
+                        FAList.value = Object.keys(data).map(name => ({
+                            name,
+                            ...data[name]
+                        }));
+                    } catch (error) {
+                        console.error(error);
+                        const errorMessage = error.response?.data?.error || error.message;
+                        alert('获取词法分析器列表失败:' + errorMessage);
+                    }
+                };
+
+                watch(selectedFA, async (newValue) => {
+                    if (newValue) {
+                        const selected = FAList.value.find(fa => fa.name === newValue);
+                        if (selected) {
+                            nfaInput.value = selected.fa;
+                        }
+                    }
+                });
+
+                onMounted(() => {
+                    fetchFAList();
+                });
+
+                return {
+                    nfaInput,
+                    nfaSvg,
+                    dfaSvg,
+                    minDfaSvg,
+                    Q,
+                    T,
+                    alphabet,
+                    piData,
+                    convertFA,
+                    formatNextState,
+                    selectedFA,
+                    FAList
+                };
+            }
+        }).mount('#app');
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "compiler",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "author": "Tanphoon",
+  "type": "module",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0",
+    "fs": "^0.0.1-security",
+    "graphviz": "^0.0.9"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
